@@ -155,10 +155,18 @@ services:
     ports:
       - "80:80"
     command: >-
-      certonly --webroot --preferred-challenges http
-      -d ${DOMAIN_NAME} -m ${CERTBOT_EMAIL} --agree-tos --non-interactive -vvv
+      certonly
+      --webroot
+      -w /var/www/certbot
+      --preferred-challenges http
+      -d ${DOMAIN_NAME}
+      -m ${CERTBOT_EMAIL}
+      --agree-tos
+      --non-interactive
+      -vvv
     volumes:
       - letsencrypt:/etc/letsencrypt
+      - certbot-webroot:/var/www/certbot
     networks:
       - shop-network-prod
     restart: "no"
