@@ -148,6 +148,8 @@ services:
   # ─── Certbot (SSL auto-renewal) ───────────────────────────────────────────
   certbot_init:
     container_name: shop-certbot-init
+    ports:
+      - "80:80"
     image: certbot/certbot:latest
     environment:
       DOMAIN: ${DOMAIN_NAME}
