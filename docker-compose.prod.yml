@@ -120,7 +120,11 @@ services:
       - "${NGINX_PORT:-80}:80"
       - "${NGINX_SSL_PORT:-443}:443"
     environment:
-      - TZ=Asia/Tehran
+      TZ: Asia/Tehran
+      DOMAIN_NAME: ${DOMAIN_NAME}
+      SERVER_IP: ${SERVER_IP}
+      CERTBOT_EMAIL: ${CERTBOT_EMAIL}
+      
     volumes:
       - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./docker/nginx/conf.d/production.conf:/etc/nginx/templates/default.conf.template:ro
