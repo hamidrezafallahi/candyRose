@@ -138,6 +138,8 @@ services:
         condition: service_healthy
       frontend:
         condition: service_healthy
+      certbot_init:
+        condition: service_completed_successfully
     networks:
       - shop-network-prod
     restart: unless-stopped
@@ -149,29 +151,32 @@ services:
           cpus: "0.3"
   # ─── Certbot (SSL auto-renewal) ───────────────────────────────────────────
   certbot_init:
-    depends_on:
-      nginx:
-        condition: service_started
     container_name: shop-certbot-init
+    image: certbot/certbot:latest
+
     ports:
       - "80:80"
-    image: certbot/certbot:latest
+
     environment:
       DOMAIN: ${DOMAIN_NAME}
       CERTBOT_EMAIL: ${CERTBOT_EMAIL}
+
     command: >-
       certonly
       --standalone
-       --preferred-challenges http
+      --preferred-challenges http
       -d ${DOMAIN_NAME}
       -m ${CERTBOT_EMAIL}
       --agree-tos
       --non-interactive
       -vvv
+
     volumes:
       - letsencrypt:/etc/letsencrypt
+
     networks:
       - shop-network-prod
+
     restart: "no"
   certbot_renew:
     image: certbot/certbot:latest
