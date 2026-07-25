@@ -10,13 +10,14 @@ services:
   pgadmin:
     image: dpage/pgadmin4:latest
     container_name: shop-pgadmin-prod
+
     environment:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@example.com}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
       PGADMIN_CONFIG_SERVER_MODE: "False"
 
     ports:
-      - "5050:80"
+      - "127.0.0.1:5050:80"
 
     volumes:
       - pgadmin_data_prod:/var/lib/pgadmin
@@ -34,7 +35,7 @@ services:
     command: -H unix:///var/run/docker.sock
 
     ports:
-      - "${PORTAINER_PORT:-9000}:9000"
+      - "127.0.0.1:${PORTAINER_PORT:-9000}:9000"
 
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
