@@ -87,12 +87,8 @@ services:
     #   context: ./FrontEnd
     #   dockerfile: Dockerfile.prod
     container_name: shop-frontend-prod
-    environment:
-      NODE_ENV: production
-      INTERNAL_API_URL: ${INTERNAL_API_URL:-http://backend:8080}
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://${DOMAIN_NAME}/api}
-      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-https://${DOMAIN_NAME}}
-      INTERNAL_SERVER_SIDE_API_URL: ${INTERNAL_SERVER_SIDE_API_URL:-http://backend:8080}
+    env_file:
+      - .env
     depends_on:
       backend:
         condition: service_healthy
