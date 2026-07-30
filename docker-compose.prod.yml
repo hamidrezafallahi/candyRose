@@ -55,6 +55,7 @@ services:
       Backup__PgDumpPath: pg_dump
     volumes:
       - uploads_prod:/app/wwwroot/uploads
+      - backups_prod:/app/backups
     depends_on:
       postgres:
         condition: service_healthy
@@ -219,6 +220,9 @@ volumes:
 
   uploads_prod:
     name: shop-uploads-prod
+
+  backups_prod:
+    name: shop-backups-prod
 
   letsencrypt:
     name: shop-letsencrypt
