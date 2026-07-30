@@ -34,11 +34,7 @@ services:
           memory: 512M
   # ─── Backend (ASP.NET) ──────────────────────────────────────────────────────
   backend:
-    # استفاده از ایمیج ساخته شده در داکر هاب
-    image: hamidrezafalahi/shop-backend:latest
-    # build:  # کامنت شده - دیگر نیازی به ساخت محلی نیست
-    #   context: ./BackEnd
-    #   dockerfile: Dockerfile.prod
+    image: hamidrezafalahi/shop-backend:${BACKEND_IMAGE_TAG}
     container_name: shop-backend-prod
     environment:
       ASPNETCORE_ENVIRONMENT: Production
@@ -50,8 +46,13 @@ services:
         Username=${POSTGRES_USER:-postgres};
         Password=${POSTGRES_PASSWORD:-postgres}
       Jwt__Key: ${JWT_KEY}
-      Jwt__Issuer: OnlineShop
-      Jwt__Audience: OnlineShopUsers
+      Jwt__Issuer: ${JWT_ISSUER:-OnlineShop}
+      Jwt__Audience: ${JWT_AUDIENCE:-OnlineShopUsers}
+      Hangfire__DashboardEnabled: ${HANGFIRE_DASHBOARD_ENABLED:-false}
+      Seed__AdminPassword: ${SEED_ADMIN_PASSWORD:-}
+      Seed__SampleDirectory: /app/seeds
+      Backup__Directory: /app/backups
+      Backup__PgDumpPath: pg_dump
     volumes:
       - uploads_prod:/app/wwwroot/uploads
     depends_on:
@@ -81,11 +82,7 @@ services:
           cpus: "0.5"
   # ─── Frontend (Next.js) ─────────────────────────────────────────────────────
   frontend:
-    # استفاده از ایمیج ساخته شده در داکر هاب
-    image: hamidrezafalahi/shop-frontend:latest
-    # build:  # کامنت شده - دیگر نیازی به ساخت محلی نیست
-    #   context: ./FrontEnd
-    #   dockerfile: Dockerfile.prod
+    image: hamidrezafalahi/shop-frontend:${FRONTEND_IMAGE_TAG}
     container_name: shop-frontend-prod
     env_file:
       - .env
