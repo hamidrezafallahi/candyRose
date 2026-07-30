@@ -84,8 +84,11 @@ services:
   frontend:
     image: hamidrezafalahi/shop-frontend:${FRONTEND_IMAGE_TAG}
     container_name: shop-frontend-prod
-    env_file:
-      - .env
+    # Only non-secret frontend runtime vars — never mount full .env (JWT/DB passwords).
+    environment:
+      INTERNAL_SERVER_SIDE_API_URL: ${INTERNAL_SERVER_SIDE_API_URL:-http://backend:8080}
+      NEXT_PUBLIC_INTERNAL_API_URL: ${NEXT_PUBLIC_INTERNAL_API_URL:-http://backend:8080}
+      NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL}
     depends_on:
       backend:
         condition: service_healthy
