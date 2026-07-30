@@ -127,6 +127,7 @@ services:
       - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./docker/nginx/conf.d/production.conf:/etc/nginx/templates/default.conf.template:ro
       - letsencrypt:/etc/letsencrypt:ro
+      - ./nginx_configs/ssl-dhparams.pem:/etc/letsencrypt/ssl-dhparams.pem:ro
       - certbot-webroot:/var/www/certbot:ro
       - uploads_prod:/var/www/uploads:ro
       - nginx-cache:/data/nginx/cache
