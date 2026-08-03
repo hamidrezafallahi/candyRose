@@ -18,6 +18,7 @@ LOG_FILE="/var/log/shop-deploy.log"
 STATE_DIR="/opt/shop/.deploy-state"
 COMPOSE="docker compose -p shop -f docker-compose.prod.yml"
 
+# هم در GitHub Actions نمایش داده می‌شود و هم در فایل لاگ ذخیره می‌شود.
 exec > >(tee -a "$LOG_FILE") 2>&1
 
 mkdir -p "$STATE_DIR"
@@ -48,19 +49,30 @@ write_sha() {
   echo -n "$sha" > "$file"
 }
 
+update_env_tag() {
+  local var_name="$1"
+  local sha="$2"
+
+  if grep -q "^${var_name}=" .env 2>/dev/null; then
+    sed -i "s|^${var_name}=.*|${var_name}=${sha}|" .env
+  else
+    echo "${var_name}=${sha}" >> .env
+  fi
+}
+
 wait_healthy() {
   local service="$1"
   local container="shop-${service}-prod"
   echo "Waiting for $container to become healthy..."
   for _ in $(seq 1 40); do
     status="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$container" 2>/dev/null || true)"
-    if [[ "$status" == "healthy" || "$status" == "running" ]]; then
+    if [[ "$status" == "healthy" ]]; then
       echo "$container is $status"
       return 0
     fi
     sleep 3
   done
-  echo "ERROR: $container did not become healthy in time (last=$status)"
+  echo "ERROR: $container did not become healthy in time (last=${status:-unknown})"
   return 1
 }
 
@@ -82,21 +94,19 @@ deploy_service() {
 
   if [[ "$service" == "frontend" ]]; then
     var_name="FRONTEND_IMAGE_TAG"
-  else
+  elif [[ "$service" == "backend" ]]; then
     var_name="BACKEND_IMAGE_TAG"
+  else
+    echo "ERROR: Unknown service '$service'"
+    exit 1
   fi
 
   echo "Deploying $service @ $sha"
+  update_env_tag "$var_name" "$sha"
   export "$var_name=$sha"
-  # Persist for compose / rollback convenience
-  if grep -q "^${var_name}=" .env 2>/dev/null; then
-    sed -i "s|^${var_name}=.*|${var_name}=${sha}|" .env
-  else
-    echo "${var_name}=${sha}" >> .env
-  fi
 
   $COMPOSE pull "$service"
-  $COMPOSE up -d --no-deps "$service"
+  $COMPOSE up -d --force-recreate --no-deps "$service"
   wait_healthy "$service"
   write_sha "$service" "$sha"
 }
@@ -110,6 +120,10 @@ rollback_service() {
   fi
   local prev
   prev="$(cat "$prev_file")"
+  if [[ -z "$prev" ]]; then
+    echo "ERROR: Previous SHA for $service is empty."
+    exit 1
+  fi
   echo "Rolling back $service to $prev"
   deploy_service "$service" "$prev"
 }
@@ -126,9 +140,8 @@ case "$ACTION" in
     ;;
 
   all)
-    SHA="$ARG2"
-    deploy_service frontend "$SHA"
-    deploy_service backend "$SHA"
+    deploy_service frontend "$ARG2"
+    deploy_service backend "$ARG2"
     recreate_nginx
     ;;
 
@@ -176,4 +189,6 @@ echo "=================================================="
 echo "Deploy finished successfully at: $(date)"
 echo "Frontend SHA: $(read_sha frontend || true)"
 echo "Backend SHA:  $(read_sha backend || true)"
+echo "Frontend image: $(docker inspect shop-frontend-prod --format '{{.Config.Image}}' 2>/dev/null || true)"
+echo "Backend image:  $(docker inspect shop-backend-prod --format '{{.Config.Image}}' 2>/dev/null || true)"
 echo "=================================================="

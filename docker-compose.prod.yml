@@ -34,8 +34,15 @@ services:
           memory: 512M
   # ─── Backend (ASP.NET) ──────────────────────────────────────────────────────
   backend:
-    image: hamidrezafalahi/shop-backend:${BACKEND_IMAGE_TAG}
+    # استفاده از ایمیج ساخته شده در داکر هاب
+    image: ${DOCKER_USERNAME:-hamidrezafalahi}/shop-backend:${BACKEND_IMAGE_TAG}
+    # build:  # کامنت شده - دیگر نیازی به ساخت محلی نیست
+    #   context: ./BackEnd
+    #   dockerfile: Dockerfile.prod
     container_name: shop-backend-prod
+    ports:
+      # فقط روی localhost سرور — برای SSH tunnel به Swagger
+      - "127.0.0.1:${BACKEND_PORT:-8080}:8080"
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:8080
@@ -46,16 +53,12 @@ services:
         Username=${POSTGRES_USER:-postgres};
         Password=${POSTGRES_PASSWORD:-postgres}
       Jwt__Key: ${JWT_KEY}
-      Jwt__Issuer: ${JWT_ISSUER:-OnlineShop}
-      Jwt__Audience: ${JWT_AUDIENCE:-OnlineShopUsers}
-      Hangfire__DashboardEnabled: ${HANGFIRE_DASHBOARD_ENABLED:-false}
-      Seed__AdminPassword: ${SEED_ADMIN_PASSWORD:-}
-      Seed__SampleDirectory: /app/seeds
-      Backup__Directory: /app/backups
-      Backup__PgDumpPath: pg_dump
+      Jwt__Issuer: OnlineShop
+      Jwt__Audience: OnlineShopUsers
+      Swagger__Enabled: ${Swagger__Enabled:-false}
+      Hangfire__DashboardEnabled: ${Hangfire__DashboardEnabled:-false}
     volumes:
       - uploads_prod:/app/wwwroot/uploads
-      - backups_prod:/app/backups
     depends_on:
       postgres:
         condition: service_healthy
@@ -83,13 +86,14 @@ services:
           cpus: "0.5"
   # ─── Frontend (Next.js) ─────────────────────────────────────────────────────
   frontend:
-    image: hamidrezafalahi/shop-frontend:${FRONTEND_IMAGE_TAG}
+    # استفاده از ایمیج ساخته شده در داکر هاب
+    image: ${DOCKER_USERNAME:-hamidrezafalahi}/shop-frontend:${FRONTEND_IMAGE_TAG}
+    # build:  # کامنت شده - دیگر نیازی به ساخت محلی نیست
+    #   context: ./FrontEnd
+    #   dockerfile: Dockerfile.prod
     container_name: shop-frontend-prod
-    # Only non-secret frontend runtime vars — never mount full .env (JWT/DB passwords).
-    environment:
-      INTERNAL_SERVER_SIDE_API_URL: ${INTERNAL_SERVER_SIDE_API_URL:-http://backend:8080}
-      NEXT_PUBLIC_INTERNAL_API_URL: ${NEXT_PUBLIC_INTERNAL_API_URL:-http://backend:8080}
-      NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL}
+    env_file:
+      - .env
     depends_on:
       backend:
         condition: service_healthy
@@ -127,7 +131,6 @@ services:
       - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./docker/nginx/conf.d/production.conf:/etc/nginx/templates/default.conf.template:ro
       - letsencrypt:/etc/letsencrypt:ro
-      - ./nginx_configs/ssl-dhparams.pem:/etc/letsencrypt/ssl-dhparams.pem:ro
       - certbot-webroot:/var/www/certbot:ro
       - uploads_prod:/var/www/uploads:ro
       - nginx-cache:/data/nginx/cache
@@ -165,9 +168,11 @@ services:
       --standalone
       --preferred-challenges http
       -d ${DOMAIN_NAME}
+      -d www.${DOMAIN_NAME}
       -m ${CERTBOT_EMAIL}
       --agree-tos
       --non-interactive
+      --expand
       -vvv
 
     volumes:
@@ -221,9 +226,6 @@ volumes:
 
   uploads_prod:
     name: shop-uploads-prod
-
-  backups_prod:
-    name: shop-backups-prod
 
   letsencrypt:
     name: shop-letsencrypt
