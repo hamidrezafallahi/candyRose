@@ -57,6 +57,11 @@ services:
       Jwt__Audience: OnlineShopUsers
       Swagger__Enabled: ${Swagger__Enabled:-false}
       Hangfire__DashboardEnabled: ${Hangfire__DashboardEnabled:-false}
+      # AI blog content bot (seeded ContentEditor account)
+      ContentAutomation__AdminBaseUrl: ${ContentAutomation__AdminBaseUrl:-https://rooshakshop.com}
+      ContentAutomation__ServiceAccountName: ${ContentAutomation__ServiceAccountName:-Content Admin}
+      ContentAutomation__ServiceAccountEmail: ${ContentAutomation__ServiceAccountEmail:-content-bot@onlineshop.local}
+      ContentAutomation__ServiceAccountPassword: ${ContentAutomation__ServiceAccountPassword:-ContentBot@123}
     volumes:
       - uploads_prod:/app/wwwroot/uploads
     depends_on:
@@ -216,6 +221,37 @@ services:
         done
       '
     restart: unless-stopped
+
+  # ─── n8n (AI blog SEO automation) ─────────────────────────────────────────
+  # Official image — not rebuilt by CI. Bound to localhost; use SSH tunnel for UI.
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: shop-n8n-prod
+    ports:
+      - "127.0.0.1:${N8N_PORT:-5678}:5678"
+    env_file:
+      - .env
+    environment:
+      # Force IPv4 listen so Docker host port publish works (n8n default can be :: only)
+      N8N_LISTEN_ADDRESS: "0.0.0.0"
+    volumes:
+      - n8n_data_prod:/home/node/.n8n
+      - ./automation/n8n:/workflows:ro
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - shop-network-prod
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+        reservations:
+          memory: 512M
+          cpus: "0.25"
+
 networks:
   shop-network-prod:
     name: shop-network-prod
@@ -238,3 +274,6 @@ volumes:
 
   nginx-logs:
     name: shop-nginx-logs
+
+  n8n_data_prod:
+    name: shop-n8n-data-prod

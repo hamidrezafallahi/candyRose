@@ -1,0 +1,651 @@
+{
+  "id": "ai-blog-seo-daily",
+  "name": "AI Blog SEO Daily",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 * * *"
+            }
+          ]
+        }
+      },
+      "id": "cron-daily",
+      "name": "Daily 08:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "seed",
+              "name": "seedTopics",
+              "value": "={{ $env.SEED_TOPICS_JSON || '[\"ظروف کریستال\",\"ظروف دکوری\"]' }}",
+              "type": "string"
+            },
+            {
+              "id": "api",
+              "name": "apiBase",
+              "value": "={{ $env.API_BASE_URL || 'http://localhost:8080/api' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "set-config",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.apiBase }}/Identity/login",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"emailOrPhone\": \"{{ $env.CONTENT_BOT_EMAIL }}\",\n  \"password\": \"{{ $env.CONTENT_BOT_PASSWORD }}\"\n}",
+        "options": {}
+      },
+      "id": "login",
+      "name": "Login Content Bot",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "token",
+              "name": "accessToken",
+              "value": "={{ $json.data.accessToken || $json.accessToken || $json.data?.accessToken }}",
+              "type": "string"
+            },
+            {
+              "id": "api2",
+              "name": "apiBase",
+              "value": "={{ $('Config').item.json.apiBase }}",
+              "type": "string"
+            },
+            {
+              "id": "seed2",
+              "name": "seedTopics",
+              "value": "={{ $('Config').item.json.seedTopics }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "store-token",
+      "name": "Store Token",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        660,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Store Token').item.json.apiBase }}/Blogs/getslugs",
+        "options": {}
+      },
+      "id": "get-slugs",
+      "name": "Get Existing Slugs",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://suggestqueries.google.com/complete/search",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "client",
+              "value": "firefox"
+            },
+            {
+              "name": "hl",
+              "value": "fa"
+            },
+            {
+              "name": "q",
+              "value": "ظروف کریستال"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "keyword-suggest",
+      "name": "Keyword Suggest",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        420
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const token = $('Store Token').item.json.accessToken;\nconst apiBase = $('Store Token').item.json.apiBase;\nconst slugPayload = $('Get Existing Slugs').item.json;\nconst slugList = slugPayload?.data || slugPayload || [];\nconst existingSlugs = new Set(\n  (Array.isArray(slugList) ? slugList : [])\n    .map(x => (x.slug || '').toLowerCase())\n    .filter(Boolean)\n);\nconst fallbackKeywords = [\n  'ظروف کریستال پذیرایی',\n  'ظروف دکوری کریستال',\n  'خرید ظروف کریستال',\n  'نگهداری ظروف کریستال',\n  'تفاوت کریستال و شیشه',\n  'هدیه ظروف کریستال',\n  'چیدمان میز کریستال',\n  'ظروف کریستال عروس',\n  'قیمت ظروف کریستال',\n  'شستشوی ظروف کریستال'\n];\nlet keywords = fallbackKeywords;\ntry {\n  const suggest = $('Keyword Suggest').item.json;\n  if (Array.isArray(suggest?.[1]) && suggest[1].length) {\n    keywords = suggest[1].slice(0, 15);\n  }\n} catch (e) {}\nconst pick = keywords.find(k => !existingSlugs.has(String(k).toLowerCase().replace(/\\s+/g, '-'))) || keywords[0];\nconst slug = String(pick).toLowerCase().replace(/\\s+/g, '-').replace(/[^\\u0600-\\u06FFa-z0-9-]/gi, '');\nreturn [{\n  json: {\n    token,\n    apiBase,\n    candidateKeywords: keywords,\n    selectedKeyword: pick,\n    selectedTopic: pick,\n    slug,\n    existingSlugCount: existingSlugs.size\n  }\n}];"
+      },
+      "id": "select-topic",
+      "name": "Select Topic",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.LLM_API_URL || 'https://api.groq.com/openai/v1/chat/completions' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"{{ $env.LLM_MODEL || 'llama-3.3-70b-versatile' }}\",\n  \"temperature\": 0.85,\n  \"response_format\": { \"type\": \"json_object\" },\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"تو نویسندهی باتجربهی فروشگاه ظروف کریستال و دکوری هستی که برای مشتری ایرانی مینویسی. خروجی فقط JSON معتبر با کلیدهای: titleFa, introFa, contentFa, conclusionFa, excerptFa, metaDescriptionFa, metaKeywordsFa, titleEn, introEn, contentEn, conclusionEn, excerptEn, metaDescriptionEn, metaKeywordsEn, slug.\\n\\nسبک نوشتار (خیلی مهم):\\n- مثل یک فروشنده/مشاور واقعی بنویس؛ لحن محاورهای مودبانه، نه مقالهی رباتیک.\\n- از کلیشههای هوش مصنوعی پرهیز کن: در دنیای امروز، در نتیجه، به طور کلی، ضروری است، بهتر است بدانید، جامع، بینظیر، تحولآفرین، در این مقاله میخواهیم.\\n- جملهها طول متغیر داشته باشند؛ گاهی کوتاه و کاربردی.\\n- تجربهی عملی بده (شستشو، نگهداری، هدیه، چیدمان میز) نه تعریفهای عمومی.\\n- کلیدواژه را طبیعی و کم جا بده؛ stuffing ممنوع.\\n- فارسی اصلی و قوی باشد؛ انگلیسی خلاصهتر ولی طبیعی.\\n\\nساختار اجباری:\\n- contentFa و contentEn بهصورت HTML با H2/H3\\n- حداقل یک لینک داخلی به /categories/ یا /products/\\n- بخش FAQ دقیقا با <h2>سوالات متداول</h2> و ۵ تا ۸ سؤال با <h3> و پاسخ <p>\\n- metaDescriptionFa بین ۷۰ تا ۱۶۰ کاراکتر\\n- excerpt حداکثر ۱۶۰ کاراکتر\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"کلمه کلیدی اصلی: {{ $('Select Topic').item.json.selectedKeyword }}. اسلاگ پیشنهادی: {{ $('Select Topic').item.json.slug }}. مخاطب: خریداران ایرانی ظروف کریستال و دکوری.\\nحداقل‌ها را رعایت کن: introFa >= 100 کاراکتر، contentFa متن خالص >= 700 کاراکتر، conclusionFa >= 80 کاراکتر، metaDescriptionFa بین 70 تا 160 کاراکتر، و حتما FAQ با عنوان سوالات متداول.\"\n    }\n  ]\n}",
+        "options": {}
+      },
+      "id": "llm-generate",
+      "name": "Generate Article (LLM)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1760,
+        300
+      ],
+      "notes": "Default = Groq free OpenAI-compatible API. Credential Authorization: Bearer <GROQ_API_KEY or OPENAI_API_KEY>"
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $('Generate Article (LLM)').item.json;\nconst content = raw.choices?.[0]?.message?.content || '{}';\nlet article;\ntry { article = JSON.parse(content); } catch { throw new Error('LLM did not return valid JSON'); }\nconst ctx = $('Select Topic').item.json;\nconst keyword = ctx.selectedKeyword || 'ظروف کریستال';\n\nconst stripHtml = (s) => String(s || '').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/gi, ' ').replace(/\\s+/g, ' ').trim();\nconst ensureMeta = (s, fallback) => {\n  let t = String(s || fallback || '').trim();\n  if (t.length < 70) {\n    t = `${t} راهنمای کاربردی خرید، نگهداری و چیدمان ${keyword} برای خانه و پذیرایی.`.replace(/\\s+/g, ' ').trim();\n  }\n  if (t.length > 160) t = t.slice(0, 157).trim() + '...';\n  if (t.length < 70) t = (t + ' راهنمای کامل ظروف کریستال و دکوری برای خرید هوشمند.').slice(0, 160);\n  return t;\n};\nconst ensureContent = (html) => {\n  let c = String(html || '').trim();\n  if (!/href\\s*=\\s*[\"'][^\"']*\\/(products|categories|blog)\\//i.test(c)) {\n    c = `<p>برای دیدن گزینه‌های مرتبط، به <a href=\"/categories/\">دسته‌بندی ظروف</a> سر بزنید.</p>` + c;\n  }\n  if (!/<h2[^>]*>\\s*(سوالات متداول|پرسش‌های متداول|faq)/i.test(c)) {\n    c += `<h2>سوالات متداول</h2>\n<h3>${keyword} برای چه استفاده‌ای مناسب است؟</h3>\n<p>بیشتر برای پذیرایی، دکوراسیون میز و هدیه کاربرد دارد و اگر درست نگهداری شود ظاهر شفاف خود را حفظ می‌کند.</p>\n<h3>چطور ${keyword} را بشوییم؟</h3>\n<p>شستشوی دستی با اسفنج نرم و شوینده ملایم معمولاً ایمن‌تر است؛ از ضربه‌های ناگهانی و شوک دمایی شدید پرهیز کنید.</p>\n<h3>موقع خرید به چه نکاتی توجه کنیم؟</h3>\n<p>شفافیت، ضخامت بدنه، ایستایی پایه و هماهنگی با بقیه ظروف روی میز از مهم‌ترین معیارها هستند.</p>\n<h3>آیا برای هدیه مناسب است؟</h3>\n<p>بله، مخصوصاً اگر بسته‌بندی محکم و ظاهر شکیل داشته باشد و با سلیقه میزبان هماهنگ باشد.</p>\n<h3>چطور براقیت آن حفظ شود؟</h3>\n<p>بعد از شستشو با پارچه نرم خشک کنید و از اسکاچ زبر یا مواد بسیار اسیدی دوری کنید.</p>`;\n  }\n  let guard = 0;\n  while (stripHtml(c).length < 520 && guard < 8) {\n    c += `<p>در انتخاب ${keyword} بهتر است به کاربرد واقعی میز، فضای پذیرایی و راحتی نگهداری فکر کنید. مدل‌های ساده‌تر معمولاً همه‌کاره‌ترند و با سرویس‌های مختلف بهتر ست می‌شوند.</p>`;\n    guard += 1;\n  }\n  return c;\n};\n\nconst introFa = article.introFa || `اگر به دنبال ${keyword} هستید، این راهنما کمک می‌کند انتخاب کاربردی‌تری داشته باشید و بعد از خرید هم بهتر از آن نگهداری کنید.`;\nconst conclusionFa = article.conclusionFa || `در نهایت، ${keyword} وقتی ارزش خرید دارد که هم با فضای خانه هماهنگ باشد و هم نگهداری‌اش برای شما سخت نباشد.`;\nconst contentFa = ensureContent(article.contentFa);\nconst metaDescriptionFa = ensureMeta(article.metaDescriptionFa, introFa);\nconst excerptFa = ensureMeta(article.excerptFa || metaDescriptionFa, metaDescriptionFa).slice(0, 160);\n\nconst normalized = {\n  ...article,\n  titleFa: article.titleFa || keyword,\n  introFa,\n  contentFa,\n  conclusionFa,\n  excerptFa,\n  metaDescriptionFa,\n  metaKeywordsFa: article.metaKeywordsFa || `${keyword}, ظروف کریستال, ظروف دکوری, خرید ظروف`,\n  titleEn: article.titleEn || keyword,\n  introEn: article.introEn || introFa,\n  contentEn: ensureContent(article.contentEn || contentFa),\n  conclusionEn: article.conclusionEn || conclusionFa,\n  excerptEn: ensureMeta(article.excerptEn || article.metaDescriptionEn || excerptFa, excerptFa).slice(0, 160),\n  metaDescriptionEn: ensureMeta(article.metaDescriptionEn || metaDescriptionFa, metaDescriptionFa),\n  metaKeywordsEn: article.metaKeywordsEn || article.metaKeywordsFa || keyword,\n  slug: article.slug || ctx.slug,\n  primaryKeyword: keyword,\n};\n\nreturn [{\n  json: {\n    ...ctx,\n    article: normalized,\n  }\n}];"
+      },
+      "id": "parse-article",
+      "name": "Parse Article JSON",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.apiBase }}/Blogs/validate-content",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.token }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ ...$json.article, primaryKeyword: $json.selectedKeyword }) }}",
+        "options": {}
+      },
+      "id": "validate",
+      "name": "Quality Gates",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2200,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.data?.isValid ?? $json.isValid }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "if-valid",
+      "name": "Is Valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        2420,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.LLM_API_URL || 'https://api.groq.com/openai/v1/chat/completions' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"{{ $env.LLM_MODEL || 'llama-3.3-70b-versatile' }}\",\n  \"temperature\": 0.4,\n  \"response_format\": { \"type\": \"json_object\" },\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a visual researcher for an Iranian crystal / decorative tableware shop blog. Return ONLY valid JSON with keys: imageSearchQuery (English, 4-8 words, concrete scene for Unsplash/stock photo search), imageTags (array of 3-5 English single-word tags, no Persian), imageAltFa (short Persian alt), imageAltEn (short English alt).\\nRules:\\n- Query must match the ARTICLE topic visually (e.g. crystal glasses on dining table, crystal vase with flowers, washing crystal glassware).\\n- Prefer real product scenes: dining table, hospitality, gift, home decor, close-up crystal.\\n- Ban irrelevant topics: perfume, cars, people portraits, abstract AI art, food unless tableware is the focus.\\n- Never use Persian inside imageSearchQuery or imageTags.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Keyword: {{ $('Parse Article JSON').item.json.selectedKeyword }}\\nTitleFa: {{ $('Parse Article JSON').item.json.article.titleFa }}\\nTitleEn: {{ $('Parse Article JSON').item.json.article.titleEn }}\\nExcerptFa: {{ $('Parse Article JSON').item.json.article.excerptFa }}\\nPick the best stock-photo search for this article thumbnail.\"\n    }\n  ]\n}",
+        "options": {}
+      },
+      "id": "llm-image",
+      "name": "Suggest Thumbnail (LLM)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2540,
+        200
+      ],
+      "notes": "LLM chooses English stock-photo query/tags matching the article topic. Reuse same Header Auth credential as Generate Article."
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json;\nconst content = raw.choices?.[0]?.message?.content || '{}';\nlet parsed = {};\ntry { parsed = JSON.parse(content); } catch { parsed = {}; }\n\nconst ctx = $('Parse Article JSON').item.json;\nconst article = ctx.article || {};\nconst titleEn = String(article.titleEn || '').trim();\n\nconst fallbackQuery = (titleEn || 'crystal glassware dining table')\n  .toLowerCase()\n  .replace(/[^a-z0-9\\s]/g, ' ')\n  .replace(/\\s+/g, ' ')\n  .trim()\n  .slice(0, 80) || 'crystal glassware dining table';\n\nlet query = String(parsed.imageSearchQuery || parsed.query || fallbackQuery)\n  .toLowerCase()\n  .replace(/[^a-z0-9\\s-]/g, ' ')\n  .replace(/\\s+/g, ' ')\n  .trim()\n  .slice(0, 100);\nif (!query) query = fallbackQuery;\n\nlet tags = Array.isArray(parsed.imageTags) ? parsed.imageTags : [];\ntags = tags\n  .map((t) => String(t || '').toLowerCase().replace(/[^a-z0-9]/g, ''))\n  .filter((t) => t.length > 2)\n  .slice(0, 5);\nif (!tags.length) {\n  tags = query.split(' ').filter((t) => t.length > 2).slice(0, 4);\n}\nif (!tags.length) tags = ['crystal', 'glassware', 'tableware'];\n\nconst slug = String(article.slug || ctx.slug || 'blog')\n  .toLowerCase()\n  .replace(/[^a-z0-9-]+/g, '-')\n  .replace(/-+/g, '-')\n  .replace(/^-|-$/g, '') || 'blog';\n\nreturn [{\n  json: {\n    ...ctx,\n    imageSearchQuery: query,\n    imageTags: tags,\n    imageAltFa: parsed.imageAltFa || article.titleFa || ctx.selectedKeyword,\n    imageAltEn: parsed.imageAltEn || article.titleEn || query,\n    thumbnailFileName: `${slug}-thumbnail.jpg`,\n  },\n}];"
+      },
+      "id": "parse-image-suggestion",
+      "name": "Parse Image Suggestion",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2760,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const ctx = $input.first().json;\nconst unsplashKey = String($env.UNSPLASH_ACCESS_KEY || '').trim();\nconst query = ctx.imageSearchQuery || 'crystal glassware';\nconst tags = Array.isArray(ctx.imageTags) && ctx.imageTags.length\n  ? ctx.imageTags\n  : query.split(' ').slice(0, 4);\n\nlet imageUrl = `https://loremflickr.com/1200/800/${tags.join(',')}`;\nlet imageSource = 'loremflickr';\n\nif (unsplashKey) {\n  try {\n    const res = await this.helpers.httpRequest({\n      method: 'GET',\n      url: 'https://api.unsplash.com/search/photos',\n      qs: {\n        query,\n        per_page: 1,\n        orientation: 'landscape',\n        content_filter: 'high',\n      },\n      headers: {\n        Authorization: `Client-ID ${unsplashKey}`,\n      },\n      json: true,\n    });\n    const direct = res?.results?.[0]?.urls?.regular || res?.results?.[0]?.urls?.full;\n    if (direct) {\n      imageUrl = direct;\n      imageSource = 'unsplash';\n    }\n  } catch (e) {\n    imageSource = 'loremflickr-fallback';\n  }\n}\n\nreturn [{\n  json: {\n    ...ctx,\n    imageUrl,\n    imageSource,\n  },\n}];"
+      },
+      "id": "resolve-image-url",
+      "name": "Resolve Image URL",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2980,
+        200
+      ],
+      "notes": "Uses LLM query against Unsplash when UNSPLASH_ACCESS_KEY is set; otherwise English-tagged loremflickr."
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.imageUrl }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "data"
+            }
+          },
+          "redirect": {
+            "redirect": {
+              "followRedirects": true,
+              "maxRedirects": 5
+            }
+          },
+          "timeout": 60000
+        }
+      },
+      "id": "download-thumbnail",
+      "name": "Download Thumbnail",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3200,
+        200
+      ],
+      "continueOnFail": true,
+      "notes": "Downloads the LLM-selected stock image."
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first();\nconst ctx = $('Resolve Image URL').item.json;\n\nif (!item.binary?.data) {\n  // Still create draft without thumbnail if download failed\n  return [{\n    json: { ...ctx, hasThumbnail: false },\n  }];\n}\n\nconst bin = item.binary.data;\nitem.binary.data = {\n  ...bin,\n  fileName: ctx.thumbnailFileName || 'blog-thumbnail.jpg',\n  fileExtension: 'jpg',\n  mimeType:\n    bin.mimeType && bin.mimeType !== 'application/octet-stream'\n      ? bin.mimeType\n      : 'image/jpeg',\n};\n\nreturn [{\n  json: { ...ctx, hasThumbnail: true },\n  binary: item.binary,\n}];"
+      },
+      "id": "ensure-thumbnail-binary",
+      "name": "Ensure Thumbnail Binary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3420,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Parse Article JSON').item.json.apiBase }}/Blogs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Parse Article JSON').item.json.token }}"
+            }
+          ]
+        },
+        "contentType": "multipart-form-data",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "TitleFa",
+              "value": "={{ $('Parse Article JSON').item.json.article.titleFa }}"
+            },
+            {
+              "name": "IntroFa",
+              "value": "={{ $('Parse Article JSON').item.json.article.introFa }}"
+            },
+            {
+              "name": "ContentFa",
+              "value": "={{ $('Parse Article JSON').item.json.article.contentFa }}"
+            },
+            {
+              "name": "ConclusionFa",
+              "value": "={{ $('Parse Article JSON').item.json.article.conclusionFa }}"
+            },
+            {
+              "name": "ExcerptFa",
+              "value": "={{ $('Parse Article JSON').item.json.article.excerptFa }}"
+            },
+            {
+              "name": "MetaDescriptionFa",
+              "value": "={{ $('Parse Article JSON').item.json.article.metaDescriptionFa }}"
+            },
+            {
+              "name": "MetaKeywordsFa",
+              "value": "={{ $('Parse Article JSON').item.json.article.metaKeywordsFa }}"
+            },
+            {
+              "name": "TitleEn",
+              "value": "={{ $('Parse Article JSON').item.json.article.titleEn }}"
+            },
+            {
+              "name": "IntroEn",
+              "value": "={{ $('Parse Article JSON').item.json.article.introEn }}"
+            },
+            {
+              "name": "ContentEn",
+              "value": "={{ $('Parse Article JSON').item.json.article.contentEn }}"
+            },
+            {
+              "name": "ConclusionEn",
+              "value": "={{ $('Parse Article JSON').item.json.article.conclusionEn }}"
+            },
+            {
+              "name": "ExcerptEn",
+              "value": "={{ $('Parse Article JSON').item.json.article.excerptEn }}"
+            },
+            {
+              "name": "MetaDescriptionEn",
+              "value": "={{ $('Parse Article JSON').item.json.article.metaDescriptionEn }}"
+            },
+            {
+              "name": "MetaKeywordsEn",
+              "value": "={{ $('Parse Article JSON').item.json.article.metaKeywordsEn }}"
+            },
+            {
+              "name": "Slug",
+              "value": "={{ $('Parse Article JSON').item.json.article.slug }}"
+            },
+            {
+              "name": "IsDraft",
+              "value": "true"
+            },
+            {
+              "name": "Source",
+              "value": "ai-pipeline"
+            },
+            {
+              "parameterType": "formBinaryData",
+              "name": "ThumbnailFile",
+              "inputDataFieldName": "data"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "create-draft",
+      "name": "Create Draft Blog",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3640,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const q = $input.first().json;\nconst errors = q.data?.errors || q.errors || ['Quality gate failed'];\nthrow new Error(Array.isArray(errors) ? errors.join(' | ') : String(errors));"
+      },
+      "id": "abort-invalid",
+      "name": "Abort Invalid",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2540,
+        420
+      ]
+    }
+  ],
+  "connections": {
+    "Daily 08:00": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Login Content Bot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Login Content Bot": {
+      "main": [
+        [
+          {
+            "node": "Store Token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Token": {
+      "main": [
+        [
+          {
+            "node": "Get Existing Slugs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Existing Slugs": {
+      "main": [
+        [
+          {
+            "node": "Keyword Suggest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Keyword Suggest": {
+      "main": [
+        [
+          {
+            "node": "Select Topic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Select Topic": {
+      "main": [
+        [
+          {
+            "node": "Generate Article (LLM)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Article (LLM)": {
+      "main": [
+        [
+          {
+            "node": "Parse Article JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Article JSON": {
+      "main": [
+        [
+          {
+            "node": "Quality Gates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Quality Gates": {
+      "main": [
+        [
+          {
+            "node": "Is Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Valid?": {
+      "main": [
+        [
+          {
+            "node": "Suggest Thumbnail (LLM)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Abort Invalid",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Suggest Thumbnail (LLM)": {
+      "main": [
+        [
+          {
+            "node": "Parse Image Suggestion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Image Suggestion": {
+      "main": [
+        [
+          {
+            "node": "Resolve Image URL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolve Image URL": {
+      "main": [
+        [
+          {
+            "node": "Download Thumbnail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download Thumbnail": {
+      "main": [
+        [
+          {
+            "node": "Ensure Thumbnail Binary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ensure Thumbnail Binary": {
+      "main": [
+        [
+          {
+            "node": "Create Draft Blog",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "pinData": {},
+  "versionId": "1"
+}
