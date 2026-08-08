@@ -29,20 +29,21 @@ Flow:
 
 `Cron → Login → Slugs → Keywords → Topic → LLM article → Validate → Thumbnail (LLM) → Create Draft Blog`
 
-### 3) Wire LLM credential (free default: Groq)
+### 3) Wire LLM credential (default: OpenRouter)
 
 On **Generate Article (LLM)** and **Suggest Thumbnail (LLM)**:
 
 1. Header Auth credential
 2. Name: `Authorization`
-3. Value: `Bearer <your-groq-key>`
+3. Value: `Bearer <your-openrouter-key>` (`sk-or-v1-...`)
 
-Free key: https://console.groq.com → API Keys
+Key: https://openrouter.ai → API Keys  
+(Groq often returns `403 Forbidden` from some VPS IPs.)
 
 Defaults in root `.env`:
 
-- `LLM_API_URL=https://api.groq.com/openai/v1/chat/completions`
-- `LLM_MODEL=llama-3.3-70b-versatile`
+- `LLM_API_URL=https://openrouter.ai/api/v1/chat/completions`
+- `LLM_MODEL=meta-llama/llama-3.3-70b-instruct`
 
 ### 4) Manual run
 
@@ -62,7 +63,7 @@ Defaults in root `.env`:
 
 | # | Item | Required? | Where |
 |---|---|---|---|
-| 1 | LLM key | Yes | `GROQ_API_KEY` in `.env` + Header Auth in n8n |
+| 1 | LLM key | Yes | Header Auth in n8n (`Bearer sk-or-v1-...`) + `LLM_API_URL` / `LLM_MODEL` in `.env` |
 | 2 | Import workflow | Yes | n8n UI |
 | 3 | Bot account | Auto | `CONTENT_BOT_*` / `ContentAutomation__*` in `.env` |
 | 4 | Unsplash | Optional | `UNSPLASH_ACCESS_KEY` in `.env` |
