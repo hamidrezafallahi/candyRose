@@ -11,6 +11,8 @@
 #   ./deploy.sh rollback frontend
 #   ./deploy.sh rollback backend
 #   ./deploy.sh rollback all
+#
+# CI: see DEPLOY.md and .github/workflows/deploy.yml (always pass <sha> for app deploys).
 # =============================================================================
 
 set -euo pipefail
