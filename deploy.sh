@@ -7,6 +7,7 @@
 #   ./deploy.sh backend <sha>
 #   ./deploy.sh all <sha>
 #   ./deploy.sh nginx
+#   ./deploy.sh automation [up|recreate|down]
 #   ./deploy.sh rollback frontend
 #   ./deploy.sh rollback backend
 #   ./deploy.sh rollback all
@@ -17,6 +18,7 @@ set -euo pipefail
 LOG_FILE="/var/log/shop-deploy.log"
 STATE_DIR="/opt/shop/.deploy-state"
 COMPOSE="docker compose -p shop -f docker-compose.prod.yml"
+COMPOSE_AUTOMATION="docker compose -p shop -f docker-compose.automation.yml"
 
 # هم در GitHub Actions نمایش داده می‌شود و هم در فایل لاگ ذخیره می‌شود.
 exec > >(tee -a "$LOG_FILE") 2>&1
@@ -149,6 +151,28 @@ case "$ACTION" in
     recreate_nginx
     ;;
 
+  automation|n8n)
+    AUTOMATION_ACTION="${ARG2:-up}"
+    case "$AUTOMATION_ACTION" in
+      up|"")
+        echo "Starting automation (n8n)..."
+        $COMPOSE_AUTOMATION up -d
+        ;;
+      recreate)
+        echo "Recreating automation (n8n)..."
+        $COMPOSE_AUTOMATION up -d --force-recreate --no-deps n8n
+        ;;
+      down)
+        echo "Stopping automation (n8n)..."
+        $COMPOSE_AUTOMATION down
+        ;;
+      *)
+        echo "Usage: ./deploy.sh automation [up|recreate|down]"
+        exit 1
+        ;;
+    esac
+    ;;
+
   rollback)
     TARGET="${ARG2:-}"
     case "$TARGET" in
@@ -174,6 +198,7 @@ case "$ACTION" in
     echo "Usage:"
     echo "  ./deploy.sh {frontend|backend|all} <sha>"
     echo "  ./deploy.sh nginx"
+    echo "  ./deploy.sh automation [up|recreate|down]"
     echo "  ./deploy.sh rollback {frontend|backend|all}"
     echo "Current frontend SHA: $(read_sha frontend || true)"
     echo "Current backend SHA:  $(read_sha backend || true)"

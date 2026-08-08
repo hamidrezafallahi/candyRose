@@ -1,0 +1,42 @@
+# =============================================================================
+# Production Automation (n8n)
+# =============================================================================
+# Prerequisite: shop stack must already be running (shop-network-prod exists).
+#
+# Run (on VPS, from /opt/shop):
+#   docker compose -p shop -f docker-compose.automation.yml up -d
+# Or via deploy:
+#   ./deploy.sh automation
+# =============================================================================
+
+services:
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: shop-n8n-prod
+    ports:
+      - "127.0.0.1:${N8N_PORT:-5678}:5678"
+    env_file:
+      - .env
+    volumes:
+      - n8n_data_prod:/home/node/.n8n
+      - ./automation/n8n:/workflows:ro
+    networks:
+      - shop-network-prod
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+        reservations:
+          memory: 512M
+          cpus: "0.25"
+
+networks:
+  shop-network-prod:
+    external: true
+    name: shop-network-prod
+
+volumes:
+  n8n_data_prod:
+    name: shop-n8n-data-prod
