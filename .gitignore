@@ -7,3 +7,4 @@ secrets.txt
 credentials.json
 *.pem
 !nginx_configs/ssl-dhparams.pem
+.deploy-state
